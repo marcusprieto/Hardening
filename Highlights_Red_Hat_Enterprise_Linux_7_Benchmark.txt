@@ -1,0 +1,1546 @@
+
+# HIGHLIGHTS
+
+- Create Separate Partition for /tmp (Scored) - noexec
+- mount -o remount,nodev /tmp
+
+- Create Separate Partition for /var (Scored)
+
+OBS: "LVM HOWTO", http://tldp.org/HOWTO/LVM-HOWTO/
+
+#Audit:
+	Perform the following to determine if the system is configured as recommended:
+# grep -e "^/tmp[[:space:]]" /etc/fstab | grep /var/tmp
+	/tmp /var/tmp none none 0 0
+# mount | grep -e "^/tmp[[:space:]]" | grep /var/tmp
+	/tmp on /var/tmp type none (rw,bind)
+If the above commands emit no output then the system is not configured as recommended.
+
+#Remediation:
+# mount --bind /tmp /var/tmp and edit the /etc/fstab file to contain the following line:
+/tmp /var/tmp none bind 0 0
+
+- Create Separate Partition for /var/log/audit (Scored)
+
+- Create Separate Partition for /home (Scored)
+- Add nodev Option to /home (Scored)
+	# mount -o remount,nodev /home
+
+- Add nodev Option to /dev/shm Partition (Scored)
+	# mount -o remount,nodev /dev/shm
+
+- Add nosuid Option to /dev/shm Partition (Scored)
+	# mount -o remount,nosuid /dev/shm
+
+- Add noexec Option to /dev/shm Partition (Scored)
+	# mount -o remount,noexec /dev/shm
+
+- Set Sticky Bit on All World-Writable Directories (Scored)
+
+##Audit:
+	# df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null
+
+##Remediation:
+	# df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs chmod a+t
+
+- Disable Mounting of cramfs Filesystems (Not Scored)
+- Disable Mounting of freevxfs Filesystems (Not Scored)
+- Disable Mounting of jffs2 Filesystems (Not Scored)
+- Disable Mounting of hfsplus Filesystems (Not Scored)
+- Disable Mounting of squashfs Filesystems (Not Scored)
+
+##  Audit:
+	# /sbin/modprobe -n -v "File System"
+	install /bin/true
+
+	# /sbin/lsmod | grep "File System"
+	<No output>
+	
+##  Remediation:
+	Edit or create the file /etc/modprobe.d/CIS.conf and add the following line:
+	install cramfs /bin/true
+	install freevxfs /bin/true
+	install jffs2 /bin/true
+	install hfs /bin/true
+	install hfsplus /bin/true
+	install squashfs /bin/true
+	install udf /bin/true
+
+# Configure Connection to the RHN RPM Repositories (Not Scored)	
+
+## Audit:
+	Verify that the system is registered by executing the following command:
+	# yum check-update
+
+## Remediation:
+	If your system is not listed on the RHN site as a registered system, run the Red Hat Network
+	Registration tool as follows:
+	# rhn_register
+
+#Follow the prompts on the screen. If successful, the system will appear on the RHN web site
+#and be subscribed to one or more software update channels. Additionally, a new daemon,
+#rhnsd , will be enabled.
+
+# Verify Red Hat GPG Key is Installed (Scored)
+
+## Audit:
+
+	Run the following command to ensure that the system has the Red Hat GPG key properly installed:
+	# rpm -q --queryformat "%{SUMMARY}\n" gpg-pubkey
+
+## Remediation:
+	Compare the GPG fingerprint with the one from Red Hat's web site at
+	http://www.redhat.com/security/team/key. The following command can be used to print the installed release key's fingerprint, 
+	which is actually contained in the file referenced below:
+
+	# gpg --quiet --with-fingerprint /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+
+## Verify that gpgcheck is Globally Activated (Scored)
+
+## Audit:
+	Run the following command to verify that gpgcheck is set to 1 in all occurrences of the /etc/yum.conf file:
+	# grep gpgcheck /etc/yum.conf
+	gpgcheck=1
+
+## Remediation:
+	Edit the /etc/yum.conf file and set the gpgcheck to 1 as follows:
+	gpgcheck=1
+
+## Disable the rhnsd Daemon (Not Scored)
+
+## Audit:
+	# systemctl is-enabled rhnsd
+	Ensure result is not enabled.
+
+## Remediation:
+	Disable the rhnsd daemon by running the following command:
+	# systemctl disable rhnsd
+
+## Obtain Software Package Updates with yum (Not Scored)
+
+## Audit:
+	Perform the following command to determine if there are any packages that need to be updated:
+	# yum check-update
+
+## Remediation:
+	# yum update
+
+## Verify Package Integrity Using RPM (Not Scored)
+
+##Audit:
+	Perform the following to verify integrity of installed packages.
+	# rpm -qVa | awk '$2 != "c" { print $0}'
+	If any output shows up, you may have an integrity issue with that package
+
+
+# Advanced Intrusion Detection Environment (AIDE)
+	- Install AIDE (Scored)
+	Audit:
+
+- Perform the following to determine if AIDE is installed.
+	# rpm -q aide
+	aide.<package version>.<hardware platform>
+
+## Remediation:
+	Use yum to install AIDE (-y option may be used to assume yes at all prompts):	
+	# yum install aide
+	<Output messages from Yum install>
+	aide.<hardware platform> <package version> installed
+
+	Initialize AIDE:
+	# /usr/sbin/aide --init -B 'database_out=file:/var/lib/aide/aide.db.gz'
+
+#Note: The prelinking feature can interfere with AIDE because it alters binaries to speed up
+#their start up times. Set PRELINKING=no in /etc/sysconfig/prelink and run /usr/sbin/prelink -ua 
+#to restore the binaries to their prelinked state, thus avoiding false positives from AIDE.
+
+## Implement Periodic Execution of File Integrity (Scored)
+
+## Audit:
+
+	Perform the following to determine if there is a cron job scheduled to run the aide check.
+	# crontab -u root -l | grep aide
+	0 5 * * * /usr/sbin/aide --check
+
+## Remediation:
+	Execute the following command:
+	# crontab -u root -e
+	Add the following line to the crontab:
+	0 5 * * * /usr/sbin/aide --check
+
+#Note: The checking in this instance occurs every day at 5am. Alter the frequency and time
+#of the checks in compliance with site policy.
+
+# Enable SELinux in /etc/grub.conf (Scored)
+
+1. NSA SELinux resources:
+1. http://www.nsa.gov/research/selinux
+2. http://www.nsa.gov/research/selinux/list.shtml
+2. Fedora SELinux resources:
+1. FAQ: http://docs.fedoraproject.org/selinux-faq
+2. User Guide: http://docs.fedoraproject.org/selinux-user-guide
+3. Managing Services Guide: http://docs.fedoraproject.org/selinux-managing-
+confined-services-guide
+3. SELinux Project web page and wiki:
+1. http://www.selinuxproject.org
+4. Chapters 43-45 of Red Hat Enterprise Linux 5: Deployment Guide (Frank Mayer,
+Karl MacMillan and David Caplan),
+5. SELinux by Example: Using Security Enhanced Linux (Prentice Hall, August 6, 2006)	
+
+# Audit:
+	Perform the following to verify that SELinux is enabled at boot time:
+	# grep selinux=0 /etc/grub.conf
+	[no output produced]
+	# grep enforcing=0 /etc/grub.conf
+	[no output produced]
+
+# Remediation:
+	Remove all instances of selinux=0 and enforcing=0 from /etc/grub.conf.
+
+
+# Set the SELinux State (Scored)
+
+	Perform the following to determine if SELinux is enabled at boot time.
+	# grep SELINUX=enforcing /etc/selinux/config
+	SELINUX=enforcing
+
+	# /usr/sbin/sestatus
+	SELinux status: enabled
+	Current mode: enforcing
+	Mode from config file: enforcing
+	Policy from config file: targeted
+
+## Remediation:
+	Edit the /etc/selinux/config file to set the SELINUX parameter:
+	SELINUX=enforcing
+
+# Set the SELinux Policy (Scored)
+
+## Audit:
+	Perform the following to determine if the targeted policy is selected in the /etc/selinux/config file.
+	# grep SELINUXTYPE=targeted /etc/selinux/config
+	SELINUXTYPE=targeted
+
+## /usr/sbin/sestatus
+	SELinux status: enabled
+	Current mode: enforcing
+	Mode from config file: enforcing
+	Policy from config file: targeted
+
+## Remediation:
+	Edit the /etc/selinux/config file to set the SELINUXTYPE parameter:
+	SELINUXTYPE=targeted
+
+# Remove SETroubleshoot (Scored)
+
+##Audit:
+	# rpm -q setroubleshoot
+	setroubleshoot.<package version>.<hardware platform>
+	
+##Remediation:
+	# yum erase setroubleshoot
+
+## Remove MCS Translation Service (mcstrans) (Scored)
+
+## Audit:
+	Perform the following to determine if mctrans is disabled:
+	# rpm -q mcstrans
+	mcstrans.<package version>.<hardware platform>
+
+## Remediation:
+	# yum erase mcstrans
+
+# Check for Unconfined Daemons (Scored)
+	ps -eZ | egrep "initrc" | egrep -vw "tr|ps|egrep|bash|awk" | tr ':' ' ' | awk '{print $NF }'
+
+# Set User/Group Owner on /boot/grub2/grub.cfg (Scored)
+## Audit:
+	Perform the following to determine if the /boot/grub2/grub.cfg file has the correct ownership:
+	# stat -L -c "%u %g" /boot/grub2/grub.cfg | egrep "0 0"
+	If the above command emits no output then the system is not configured as recommended. 
+
+## Remediation:
+	# chown root:root /boot/grub2/grub.cfg
+
+# Set Permissions on /etc/grub.conf (Scored)
+
+## Audit:
+	Perform the following to determine if the /boot/grub2/grub.cfg file permissions are correct:
+	# stat -L -c "%a" /boot/grub2/grub.cfg | egrep ".00"
+	If the above command emits no output then the system is not configured as recommended.
+
+## Remediation:
+	# chmod og-rwx /boot/grub2/grub.cfg
+
+# Set Boot Loader Password (Scored)
+
+## Audit:
+	Perform the following to determine if a password is required to set command line boot parameters:
+	# grep "^set superusers" /boot/grub2/grub.cfg
+	set superusers="<user-list>"
+	# grep "^password" /boot/grub2/grub.cfg 
+	password_pbkdf2 <user> <encrypted password>
+	At least one user must be specified as a super user and have a password assigned.
+
+## Remediation:
+	Create an encrypted password with grub-md5-crypt:
+	# grub2-mkpasswd-pbkdf2
+	Enter password: <password>
+	Reenter password: <password>
+	Your PBKDF2 is <encrypted-password>
+
+	- Add the following into /etc/grub.d/00_header or a custom /etc/grub.d configuration file:
+
+	cat <<EOF
+	set superusers="<user-list>"
+	password_pbkdf2 <user> <encrypted-password>
+	EOF
+
+	Run the following to update the grub configuration:
+	# grub2-mkconfig -o /boot/grub2/grub.cfg
+
+## Restrict Core Dumps (Scored)
+
+## Audit:
+	Perform the following to determine if core dumps are restricted.
+	# grep "hard core" /etc/security/limits.conf
+	* hard core 0
+	# sysctl fs.suid_dumpable
+	fs.suid_dumpable = 0
+
+## Remediation:
+	Add the following line to the /etc/security/limits.conf file.
+	* hard core 0
+	Add the following line to the /etc/sysctl.conf file.
+	fs.suid_dumpable = 0
+
+## Enable Randomized Virtual Memory Region Placement (Scored)
+
+## Audit:
+	Perform the following to determine if virtual memory is randomized.
+	# sysctl -a |grep kernel.randomize_va_space
+	kernel.randomize_va_space = 2
+
+
+## Remediation:
+	Add the following line to the /etc/sysctl.conf file.
+	kernel.randomize_va_space = 2
+
+## Use the Latest OS Release (Not Scored)
+
+## Audit:
+	Run the following command to determine the current OS level:
+	# uname -r
+	or
+	# cat /etc/redhat-release
+
+## Remediation:
+	Use the latest update when installing new systems and upgrade to or reinstall with the
+	latest update as appropriate for existing systems.
+
+# Remove telnet-server (Scored)
+
+##Audit:
+	Perform the following to determine if the telnet-server package is on the system.
+	# rpm -q telnet-server
+	package telnet-server is not installed
+	
+##Remediation:
+	# yum erase telnet-server
+
+## Remove telnet Clients (Scored)
+
+## Audit:
+	Perform the following to determine if the telnet package is on the system.
+	# rpm -q telnet
+	package telnet is not installed
+
+## Remediation:
+	# yum erase telnet
+
+## Remove rsh-server (Scored)
+
+## Audit:
+	Perform the following to determine if rsh-server is installed on the system.
+	# rpm -q rsh-server
+	package rsh-server is not installed
+
+##Remediation:
+	# yum erase rsh-server
+
+## Remove rsh (Scored)
+
+## Audit:
+	Perform the following to determine if rsh is installed on the system.
+	# rpm -q rsh
+	package rsh is not installed
+
+## Remediation:
+	# yum erase rsh
+
+# Remove NIS Client (Scored)
+
+## Audit:
+	Perform the following to determine if ypbind is installed on the system.
+	# rpm -q ypbind
+	package ypbind is not installed
+
+## Remediation:
+	# yum erase ypbind
+
+## Remove NIS Server (Scored)
+
+## Audit:
+	Perform the following to determine if ypserv is installed on the system.
+	# rpm -q ypserv
+	package ypserv is not installed
+
+## Remediation:
+	# yum erase ypserv
+
+
+## Remove tftp (Scored) and Remove tftp-server (Scored)
+
+# Audit:
+	Perform the following to determine if tftp is installed on the system.
+	# rpm -q tftp tftp-server
+	package tftp is not installed
+	
+# Remediation:
+# yum erase tftp tftp-server
+
+## Remove talk (Scored) and talk-server (Scored)
+
+# Audit:
+	Audit:
+
+	Perform the following to determine if talk is installed on the system.
+	# rpm -q talk talk-server
+	package talk is not installed
+
+# Remediation:
+	# yum erase talk talk-server
+	
+## Remove xinetd (Scored)
+
+##Audit:
+	Perform the following to determine if xinetd is installed on the system.
+	# rpm -q xinetd
+	package xinetd is not installed
+
+##Remediation:
+	# yum erase xinetd
+
+## Disable chargen-dgram (Scored) chargen-stream (Scored)
+	systemctl disable chargen-dgram.service
+	systemctl disable chargen-stream.service
+	
+## Disable daytime-dgram (Scored) daytime-stream (Scored)
+	systemctl disable daytime-dgram.service
+	systemctl disable daytime-stream.service
+
+## Disable echo-dgram (Scored) echo-stream (Scored)
+	systemctl disable echo-dgram.service
+	systemctl disable echo-stream.service
+
+## Disable tcpmux-server (Scored)
+	systemctl diable tcpmux-server.service
+
+## Set Daemon umask (Scored)
+
+## Audit:
+	Perform the following to determine if the daemon umask is set.
+	# grep umask /etc/sysconfig/init
+	umask 027
+
+## Remediation:
+	Add the following line to the /etc/sysconfig/init file.
+	umask 027
+
+## Remove the X Window System (Scored)
+
+## Audit:
+	Perform the following to ensure the system is not booting into graphical mode:
+	ls -l /usr/lib/systemd/system/default.target | grep graphical.target
+	No results should be returned.
+	Perform the following to determine if the X Window server is installed on the system:
+
+	# rpm -q xorg-x11-server-common
+	package xorg-x11-server-common is not installed
+	
+## Remediation:
+	Change the default runlevel to multi user without X:
+	# cd /usr/lib/systemd/system/
+	# rm default.target
+	# ln -s multi-user.target default.target
+        
+        Uninstall the X Window Server:
+	# yum remove xorg-x11-server-common
+
+# Disable Avahi Server (Scored)	
+
+## Audit:
+	Perform the following to determine if Avahi is disabled.
+	# systemctl is-enabled avahi-daemon
+	Ensure result is not enabled.
+
+## Remediation:
+	# systemctl disable avahi-daemon
+
+# Disable Print Server - CUPS (Not Scored)
+
+## Audit:
+	Perform the following to determine if CUPS is disabled.
+	# systemctl is-enabled cups
+	disabled
+	
+## Remediation:
+	systemctl disabled cups
+
+## Remove DHCP Server (Scored)
+## Audit:
+	Perform the following to determine if DHCP is disabled.
+	# rpm -q dhcp
+	package dhcp is not installed
+
+## Remediation:
+	# yum erase dhcp
+
+# Configure Network Time Protocol (NTP) (Scored)
+
+## Audit:
+	The following script checks for the correct parameters on restrict default and restrict -6 default:
+	# grep "restrict default" /etc/ntp.conf
+	restrict default kod nomodify notrap nopeer noquery
+	# grep "restrict -6 default" /etc/ntp.conf
+	restrict -6 default kod nomodify notrap nopeer noquery
+	
+	Perform the following to determine if the system is configured to use an NTP Server and
+	that the ntp daemon is running as an unprivileged user.
+	# grep "^server" /etc/ntp.conf	
+	server
+	# grep "ntp:ntp" /etc/sysconfig/ntpd
+	OPTIONS="-u ntp:ntp -p /var/run/ntpd.pid"
+	
+## Remediation:
+	Set the following restrict parameters in /etc/ntp.conf :
+	#restrict default kod nomodify notrap nopeer noquery
+	#restrict -6 default kod nomodify notrap nopeer noquery
+	Also, make sure /etc/ntp.conf has an NTP server specified:
+	server <ntp-server>
+	Note: <ntp-server> is the IP address or hostname of a trusted time server. Configuring an
+	NTP server is outside the scope of this benchmark.
+
+	Ensure -u ntp:ntp in options in /etc/sysconfig/ntpd :
+	#OPTIONS="-u ntp:ntp"
+
+## Remove LDAP (Not Scored)
+
+## Audit:
+	Perform the following to determine if LDAP is running.
+	# rpm -q openldap-servers
+	package openldap-servers is not installed
+	# rpm -q openldap-clients
+	package openldap-clients is not installed
+
+## Remediation:
+	If LDAP is running on the system and is not needed, remove it as follows:
+	# yum erase openldap-servers
+	# yum erase openldap-clients
+
+## Disable NFS and RPC (Not Scored)
+	
+	systemctl disable nfslock rpcgssd rpcbind rpcidmapd rpcsvcgssd
+
+## Remove DNS Server (Not Scored)	
+
+## Audit:
+	Perform the following to determine if DNS is disabled on the system.
+	# rpm -q bind
+	package bind is not installed
+	
+## Remediation:
+	# yum erase bind
+
+## Remove FTP Server (Not Scored)
+
+## Audit:
+	Perform the following to determine if FTP is disabled.
+	# rpm -q vsftpd
+	package vsftpd is not installed	
+
+## Remediation:
+	# yum erase vsftpd
+
+## Network Configuration and Firewalls
+	Disable IP Forwarding (Scored)
+
+## Audit:
+	Perform the following to determine if net.ipv4.ip_forward is enabled on the system.
+	# /sbin/sysctl net.ipv4.ip_forward
+	net.ipv4.ip_forward = 0
+
+## Remediation:
+	Set the net.ipv4.ip_forward parameter to 0 in /etc/sysctl.conf :
+	net.ipv4.ip_forward=0
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.ip_forward=0
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+
+## Disable Send Packet Redirects (Scored)
+
+##Audit:
+	Perform the following to determine if send packet redirects is disabled.
+	# /sbin/sysctl net.ipv4.conf.all.send_redirects
+	net.ipv4.conf.all.send_redirects = 0
+	# /sbin/sysctl net.ipv4.conf.default.send_redirects
+	net.ipv4.conf.default.send_redirects = 0
+
+##Remediation:
+	Set the net.ipv4.conf.all.send_redirects and
+	net.ipv4.conf.default.send_redirects parameters to 0 in /etc/sysctl.conf :
+	net.ipv4.conf.all.send_redirects=0
+	net.ipv4.conf.default.send_redirects=0
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.send_redirects=0
+	# /sbin/sysctl -w net.ipv4.conf.default.send_redirects=0
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Disable Source Routed Packet Acceptance (Scored)
+
+## Audit:
+	Perform the following to determine if accepting source routed packets is disabled.
+	# /sbin/sysctl net.ipv4.conf.all.accept_source_route
+	net.ipv4.conf.all.accept_source_route = 0
+	# /sbin/sysctl net.ipv4.conf.default.accept_source_route
+	net.ipv4.conf.default.accept_source_route = 0
+
+## Remediation:
+	Set the net.ipv4.conf.all.accept_source_route and
+	net.ipv4.conf.default.accept_source_route parameters to 0 in /etc/sysctl.conf :
+	net.ipv4.conf.all.accept_source_route=0
+	net.ipv4. conf.default.accept_source_route =0
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.accept_source_route=0
+	# /sbin/sysctl -w net.ipv4.conf.default.accept_source_route=0
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Disable ICMP Redirect Acceptance (Scored)
+
+##Audit:
+	Perform the following to determine if ICMP redirect messages will be rejected.
+	# /sbin/sysctl net.ipv4.conf.all.accept_redirects
+	net.ipv4.conf.all.accept_redirects = 0
+	# /sbin/sysctl net.ipv4.conf.default.accept_redirects
+	net.ipv4.conf.default.accept_redirects = 0
+
+##Remediation:
+	Set the net.ipv4.conf.all.accept_redirects and
+	net.ipv4.conf.default.accept_redirects parameters to 0 in /etc/sysctl.conf :
+	net.ipv4.conf.all.accept_redirects=0
+	net.ipv4.conf.default.accept_redirects=0
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.accept_redirects=0
+	# /sbin/sysctl -w net.ipv4.conf.default.accept_redirects=0
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Disable Secure ICMP Redirect Acceptance (Scored)
+
+#Audit:
+	Perform the following to determine if ICMP redirect messages will be rejected from known gateways.
+	# /sbin/sysctl net.ipv4.conf.all.secure_redirects
+	net.ipv4.conf.all.secure_redirects = 0
+	# /sbin/sysctl net.ipv4.conf.default.secure_redirects
+	net.ipv4.conf.default.secure_redirects = 0
+
+Remediation:
+	Set the net.ipv4.conf.all.secure_redirects and
+	net.ipv4.conf.default.secure_redirects parameters to 0 in /etc/sysctl.conf :
+	net.ipv4.conf.all.secure_redirects=0
+	net.ipv4.conf.default.secure_redirects=0
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.secure_redirects=0
+	# /sbin/sysctl -w net.ipv4.conf.default.secure_redirects=0
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Log Suspicious Packets (Scored)
+
+# Audit:
+	Perform the following to determine if suspicious packets are logged.
+	# /sbin/sysctl net.ipv4.conf.all.log_martians
+	net.ipv4.conf.all.log_martians = 1
+	# /sbin/sysctl net.ipv4.conf.default.log_martians
+	net.ipv4.conf.default.log_martians = 1
+
+# Remediation:
+	Set the net.ipv4.conf.all.log_martians and net.ipv4.conf.default.log_martians
+	parameters to 1 in /etc/sysctl.conf :
+	net.ipv4.conf.all.log_martians=1
+	net.ipv4.conf.default.log_martians=1
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.log_martians=1
+	# /sbin/sysctl -w net.ipv4.conf.default.log_martians=1
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Enable Ignore Broadcast Requests (Scored)
+
+## Audit:
+	Perform the following to determine if all ICMP echo and timestamp requests to broadcast
+	and multicast addresses will be ignored.
+	# /sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts
+	net.ipv4.icmp_echo_ignore_broadcasts = 1
+
+## Remediation:
+	Set the net.ipv4.icmp_echo_ignore_broadcasts parameter to 1 in /etc/sysctl.conf :
+	net.ipv4.icmp_echo_ignore_broadcasts=1
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Enable Bad Error Message Protection (Scored)
+
+## Audit:
+	Perform the following to determine if bogus messages will be ignored.
+	# /sbin/sysctl net.ipv4.icmp_ignore_bogus_error_responses
+	net.ipv4.icmp_ignore_bogus_error_responses = 1
+	
+## Remediation:
+	Set the net.ipv4.icmp_ignore_bogus_error_responses parameter to 1 in /etc/sysctl.conf :
+	net.ipv4.icmp_ignore_bogus_error_responses=1
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Enable RFC-recommended Source Route Validation (Scored)
+
+## Audit:
+	Perform the following to determine if RFC-recommended source route validation is enabled.
+	# /sbin/sysctl net.ipv4.conf.all.rp_filter
+	net.ipv4.conf.all.rp_filter = 1
+	# /sbin/sysctl net.ipv4.conf.default.rp_filter
+	net.ipv4.conf.default.rp_filter = 1
+
+## Remediation:
+	Set the net.ipv4.conf.all.rp_filter and net.ipv4.conf.default.rp_filter
+	parameters to 1 in /etc/sysctl.conf :
+	net.ipv4.conf.all.rp_filter=1
+	net.ipv4.conf.default.rp_filter=1
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.conf.all.rp_filter=1
+	# /sbin/sysctl -w net.ipv4.conf.default.rp_filter=1
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Enable TCP SYN Cookies (Scored)
+
+## Audit:
+	Perform the following to determine if TCP SYN Cookies is enabled.
+	# /sbin/sysctl net.ipv4.tcp_syncookies
+	net.ipv4.tcp_syncookies = 1
+
+## Remediation:
+	Set the net.ipv4.tcp_syncookies parameter to 1 in /etc/sysctl.conf :
+	net.ipv4.tcp_syncookies=1
+	Modify active kernel parameters to match:
+	# /sbin/sysctl -w net.ipv4.tcp_syncookies=1
+	# /sbin/sysctl -w net.ipv4.route.flush=1
+
+## Create /etc/hosts.allow (Not Scored)
+## Audit:
+	Run the following command to verify the contents of the /etc/hosts.allow file.
+	# cat /etc/hosts.allow [contents will vary, depending on your network configuration]
+
+## Remediation:
+
+	Create /etc/hosts.allow:
+	# echo "ALL: <net>/<mask>, <net>/<mask>, ..." >/etc/hosts.allow
+	where each <net>/<mask> combination (for example, "192.168.1.0/255.255.255.0")
+	represents one network block in use by your organization that requires access to this system.
+
+## Verify Permissions on /etc/hosts.allow
+
+## Audit:
+	Run the following command to determine the permissions on the /etc/hosts.allow file.
+	# /bin/ls -l /etc/hosts.allow
+	-rw-r--r-- 1 root root 2055 Jan 30 16:30 /etc/hosts.allow
+
+## Remediation:
+	If the permissions of the /etc/hosts.allow file are incorrect, run the following command to correct them:
+	# /bin/chmod 644 /etc/hosts.allow
+
+## Create /etc/hosts.deny (Not Scored)
+
+## Audit:
+	Verify that /etc/hosts.deny exists and is configured to deny all hosts not explicitly listed in /etc/hosts.allow :
+	# grep "ALL: ALL" /etc/hosts.deny
+	ALL: ALL
+
+## Remediation:
+	Create /etc/hosts.deny :
+	# echo "ALL: ALL" >> /etc/hosts.deny
+
+## Verify Permissions on /etc/hosts.deny (Scored)
+
+## Audit:
+	Run the following command to determine the permissions on the /etc/hosts.deny file.
+	# /bin/ls -l /etc/hosts.deny
+	-rw-r--r-- 1 root root 2055 Jan 30 16:30 /etc/hosts.deny
+
+## Remediation:
+	If the permissions of the /etc/hosts.deny file are incorrect, run the following command to correct them:
+	# /bin/chmod 644 /etc/hosts.deny	
+
+## Uncommon Network Protocols
+	#Disable DCCP (Not Scored)
+	## Audit:
+		Perform the following to determine if DCCP is disabled.
+		# grep "install dccp /bin/true" /etc/modprobe.d/CIS.conf
+		install dccp /bin/true
+	## Remediation:
+		# echo "install dccp /bin/true" >> /etc/modprobe.d/CIS.conf
+
+## Enable firewalld (Scored)
+	# systemctl enable firewalld
+	# systemctl start firewalld
+
+
+# Install the rsyslog package (Scored)
+
+## Audit:
+	Perform the following command to verify that rsyslog is installed.
+	# rpm -q rsyslog
+	rsyslog.<package version>.<hardware platform>
+
+## Remediation:
+	# yum install rsyslog
+
+# Activate the rsyslog Service (Scored)
+	# systemctl enable rsyslog
+
+# Configure /etc/rsyslog.conf
+
+## Audit:
+	Review the contents of the /etc/rsyslog.conf file to ensure appropriate logging is set. In
+addition, perform the following command and ensure that the log files are logging
+
+information:
+	# ls -l /var/log/
+
+Remediation:
+	Edit the following lines in the /etc/rsyslog.conf file as appropriate for your environment:
+	auth,user.* /var/log/messages
+	kern.* /var/log/kern.log
+	daemon.* /var/log/daemon.log
+	syslog.* /var/log/syslog
+	lpr,news,uucp,local0,local1,local2,local3,local4,local5,local6.* /var/log/unused.log
+	# Execute the following command to restart rsyslogd
+	# pkill -HUP rsyslogd
+
+# Create and Set Permissions on rsyslog Log Files (Scored)
+	Create the /var/log/ directory and for each <logfile> listed in the /etc/rsyslog.conf file,
+	perform the following commands:
+	# touch <logfile>
+	# chown root:root <logfile>
+	# chmod og-rwx <logfile>
+	
+	For sites that have implemented a secure admin group:
+	Create the /var/log/ directory and for each <logfile> listed in the /etc/rsyslog.conf file,
+	perform the following commands (where is the name of the security group):
+	# touch <logfile>
+	# chown root:<securegrp> <logfile>
+	# chmod g-wx,o-rwx<logfile>
+
+## Configure rsyslog to Send Logs to a Remote Log Host (Scored)
+
+## Audit:
+	Review the /etc/rsyslog.conf file and verify that logs are sent to a central host (where
+	logfile.example.com is the name of your central log host).
+	# grep "^*.*[^I][^I]*@" /etc/rsyslog.conf
+
+## Remediation:
+	Edit the /etc/rsyslog.conf file and add the following line (where logfile.example.com is
+	the name of your central log host).
+	*.* @@loghost.example.com
+	# Execute the following command to restart rsyslogd
+	# pkill -HUP rsyslogd
+
+## Configure Audit Log Storage Size (Not Scored)
+
+## Audit:
+	Perform the following to determine the maximum size of the audit log files.
+	# grep max_log_file /etc/audit/auditd.conf
+	max_log_file = <MB>
+
+##Remediation:
+	Set the max_log_file parameter in /etc/audit/auditd.conf
+	max_log_file = <MB>
+	Note: MB is the number of MegaBytes the file can be.
+
+# Keep All Auditing Information (Scored)
+
+## Audit:
+	Perform the following to determine if audit logs are retained.
+	# grep max_log_file_action /etc/audit/auditd.conf
+	max_log_file_action = keep_logs
+
+## Remediation:
+	Add the following line to the /etc/audit/auditd.conf file.
+	max_log_file_action = keep_logs
+
+# Enable auditd Service (Scored)
+## Audit:
+	Perform the following to determine if auditd is enabled.
+	# systemctl is-enabled auditd
+	enabled
+## Remediation:
+	# systemctl enable auditd
+
+# Enable Auditing for Processes That Start Prior to auditd (Scored)
+
+## Audit:
+	Perform the following to determine if /boot/grub2/grub.cfg is configured to log
+	processes that start prior to auditd .
+	# grep "linux" /boot/grub2/grub.cfg
+	Make sure each line that starts with linux has the audit=1 parameter set.
+
+## Remediation:
+	Edit /etc/default/grub to include audit=1 as part of GRUB_CMDLINE_LINUX :
+	GRUB_CMDLINE_LINUX="audit=1"
+	
+# grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# grep time-change /etc/audit/audit.rules
+	-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+	-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+	-a always,exit -F arch=b64 -S clock_settime -k time-change
+	-a always,exit -F arch=b32 -S clock_settime -k time-change
+	-w /etc/localtime -p wa -k time-change
+
+# Execute the following command to restart auditd
+# pkill -P 1-HUP auditde
+
+## Record Events That Modify User/Group Information (Scored)
+
+## Audit:
+	Perform the following to determine if events that modify user/group information are recorded.
+	# grep identity /etc/audit/audit.rules
+	-w /etc/group -p wa -k identity
+	-w /etc/passwd -p wa -k identity
+	-w /etc/gshadow -p wa -k identity
+	-w /etc/shadow -p wa -k identity
+	-w /etc/security/opasswd -p wa -k identity
+
+## 	Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+
+	-w /etc/group -p wa -k identity
+	-w /etc/passwd -p wa -k identity
+	-w /etc/gshadow -p wa -k identity
+	-w /etc/shadow -p wa -k identity
+	-w /etc/security/opasswd -p wa -k identity
+	# Execute the following command to restart auditd
+	# pkill -P 1-HUP auditd
+
+## Record Events That Modify the System's Network Environment (Scored)
+
+## Audit:
+	On a 64 bit system, perform the following command and ensure the output is as shown
+	to determine if events that modify the system's environment are recorded. Note: " -a
+	always,exit " may be specified as " -a exit,always ".
+	# grep system-locale /etc/audit/audit.rules
+	-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+	-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+	-w /etc/issue -p wa -k system-locale
+	-w /etc/issue.net -p wa -k system-locale
+	-w /etc/hosts -p wa -k system-locale
+	-w /etc/sysconfig/network -p wa -k system-locale
+
+## Remediation:
+	For 64 bit systems, add the following lines to the /etc/audit/audit.rules file.
+	-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+	-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+	-w /etc/issue -p wa -k system-locale
+	-w /etc/issue.net -p wa -k system-locale
+	-w /etc/hosts -p wa -k system-locale
+	-w/etc/sysconfig/network -p wa -k system-locale
+	# Execute the following command to restart auditd
+	# pkill -P 1-HUP auditd
+
+## Record Events That Modify the System's Mandatory Access Controls (Scored)
+
+## Audit:
+	Perform the following to determine if events that modify the system's mandatory access controls are recorded
+	# grep MAC-policy /etc/audit/audit.rules
+	-w /etc/selinux/ -p wa -k MAC-policy
+
+## Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	Add the following lines to /etc/audit/audit.rules
+	-w /etc/selinux/ -p wa -k MAC-policy
+	# Execute the following command to restart auditd
+	# pkill -P 1-HUP auditd
+
+## Collect Login and Logout Events (Scored)
+
+## Audit:
+	Perform the following to determine if login and logout events are recorded.
+	# grep logins /etc/audit/audit.rules
+	-w /var/log/faillog -p wa -k logins
+	-w /var/log/lastlog -p wa -k logins
+	-w /var/log/tallylog -p wa -k logins
+
+## Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	-w /var/log/faillog -p wa -k logins
+	-w /var/log/lastlog -p wa -k logins
+	-w /var/log/tallylog -p wa -k logins
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect Session Initiation Information (Scored)
+
+Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	-w /var/run/utmp -p wa -k session
+	-w /var/log/wtmp -p wa -k session
+	-w /var/log/btmp -p wa -k session
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd	
+
+## Collect Discretionary Access Control Permission Modification Events (Scored)
+
+## Remediation:
+	For 64 bit systems, add the following lines to the /etc/audit/audit.rules file.
+	-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=500 \
+	-F auid!=4294967295 -k perm_mod
+	-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=500 \
+	-F auid!=4294967295 -k perm_mod
+	-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=500 \
+	-F auid!=4294967295 -k perm_mod
+	-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=500 \
+	-F auid!=4294967295 -k perm_mod
+	-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S \
+	lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+	-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S \
+	lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect Unsuccessful Unauthorized Access Attempts to Files (Scored)
+
+Remediation:
+	For 64 bit systems, add the following lines to the /etc/audit/audit.rules file.
+	-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate \
+	-F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k access
+	-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate \
+	-F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k access 
+	-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate \
+	-F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k access 
+	-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate \
+	-F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k access
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect Use of Privileged Commands (Scored)
+
+##Remediation:
+	To remediate this issue, the system administrator will have to execute a find command to
+	locate all the privileged programs and then add an audit line for each one of them. The
+	audit parameters associated with this are as follows:
+	-F path=" $1 " - will populate each file name found through the find command and
+	processed by awk.
+	-F perm=x - will write an audit record if the file is executed.
+	-F auid>=500 - will write a record if the user executing the command is not a privileged
+	user.
+	-F auid!= 4294967295 - will ignore Daemon events
+
+	All audit records will be tagged with the identifier "privileged."
+
+	# find PART -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print \
+	"-a always,exit -F path=" $1 " -F perm=x -F auid>=500 -F auid!=4294967295 \ -k privileged" }'
+	Next, add those lines to the /etc/audit/audit.rules file.
+
+## Collect Successful File System Mounts (Scored)
+
+## Remediation:
+	For 64 bit systems, add the following lines to the /etc/audit/audit.rules file.
+	-a always,exit -F arch=b64 -S mount -F auid>=500 -F auid!=4294967295 -k mounts
+	-a always,exit -F arch=b32 -S mount -F auid>=500 -F auid!=4294967295 -k mounts
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect File Deletion Events by User (Scored)
+
+## Remediation:
+	At a minimum, configure the audit system to collect file deletion events for all users and root.
+	For 64 bit systems, add the following to the /etc/audit/audit.rules file.
+	-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=500 \ 
+	-F auid!=4294967295 -k delete
+	-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=500 \ 
+	-F auid!=4294967295 -k delete
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect Changes to System Administration Scope (sudoers) (Scored)
+
+## Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	-w /etc/sudoers -p wa -k scope
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+## Collect System Administrator Actions (sudolog) (Scored)
+
+## Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	-w /var/log/sudo.log -p wa -k actions
+	# Execute the following command to restart auditd
+	# pkill -HUP -P 1 auditd
+
+
+## Collect Kernel Module Loading and Unloading (Scored)
+
+## Remediation:
+
+	Add the following lines to the /etc/audit/audit.rules file.
+	-w /sbin/insmod -p x -k modules
+	-w /sbin/rmmod -p x -k modules
+	-w /sbin/modprobe -p x -k modules
+	For 32 bit systems, add
+	-a always,exit -F arch=b32 -S init_module -S delete_module -k modules
+	For 64 bit systems, add
+	-a always,exit -F arch=b64 -S init_module -S delete_module -k modules
+
+## Make the Audit Configuration Immutable (Scored)
+
+## Remediation:
+	Add the following lines to the /etc/audit/audit.rules file.
+	-e 2
+
+## Configure logrotate (Not Scored)
+
+## Remediation:
+	Edit the /etc/logrotate.d/syslog file to include appropriate system logs:
+	/var/log/messages /var/log/secure /var/log/maillog /var/log/spooler /var/log/boot.log
+	/var/log/cron {
+
+## Configure cron and anacron
+	## Enable anacron Daemon (Scored)
+		## Remediation:
+			# yum install cronie-anacron	
+
+## Enable crond Daemon (Scored)
+
+## Remediation:
+	# systemctl enable crond
+
+## Set User/Group Owner and Permission on /etc/anacrontab (Scored)
+
+## Remediation:
+	# chown root:root /etc/anacrontab
+	# chmod og-rwx /etc/anacrontab
+
+## Set User/Group Owner and Permission on /etc/crontab (Scored)
+
+## Remediation:
+	# chown root:root /etc/crontab
+	# chmod og-rwx /etc/crontab
+
+## Set User/Group Owner and Permission on /etc/cron.hourly (Scored)
+
+## Remediation:
+	# chown root:root /etc/cron.hourly
+	# chmod og-rwx /etc/cron.hourly
+
+## Set User/Group Owner and Permission on /etc/cron.daily
+
+## Remediation:
+	# chown root:root /etc/cron.daily
+	# chmod og-rwx /etc/cron.daily
+
+## Set User/Group Owner and Permission on /etc/cron.weekly (Scored)
+
+## Remediation:
+	# chown root:root /etc/cron.weekly
+	# chmod og-rwx /etc/cron.weekly
+
+## Set User/Group Owner and Permission on /etc/cron.monthly (Scored)	
+
+## Remediation:
+	# chown root:root /etc/cron.monthly
+	# chmod og-rwx /etc/cron.monthly
+
+## Set User/Group Owner and Permission on /etc/cron.d (Scored)
+
+## Remediation:
+	# chown root:root /etc/cron.d
+	# chmod og-rwx /etc/cron.d
+
+## Restrict at Daemon (Scored)
+
+## Remediation:
+	# rm /etc/at.deny
+	# touch /etc/at.allow
+	# chown root:root /etc/at.allow
+	# chmod og-rwx /etc/at.allow
+
+## Restrict at/cron to Authorized Users (Scored)
+
+Remediation:
+	If /etc/cron.allow or /etc/at.allow do not exist on your system create them.
+	Run the following to ensure cron.deny and at.deny are removed and permissions are set correctly:
+	# /bin/rm /etc/cron.deny
+	# /bin/rm /etc/at.deny
+	# chmod og-rwx /etc/cron.allow
+	# chmod og-rwx /etc/at.allow
+	# chown root:root /etc/cron.allow
+	# chown root:root /etc/at.allow
+
+## Configure SSH
+	Set SSH Protocol to 2 (Scored)
+
+## Remediation:
+	Edit the /etc/ssh/sshd_config file to set the parameter as follows: Protocol 2
+
+## Set LogLevel to INFO (Scored)
+
+Remediation:
+	Edit the /etc/ssh/sshd_config file to set the parameter as follows: LogLevel INFO
+
+## Set Permissions on /etc/ssh/sshd_config (Scored)
+
+## Remediation:
+	If the user and group ownership of the /etc/ssh/sshd_config file are incorrect, run the
+	following command to correct them:
+	# chown root:root /etc/ssh/sshd_config
+	If the permissions are incorrect, run the following command to correct them:
+	# chmod 600 /etc/ssh/sshd_config
+
+## Disable SSH X11 Forwarding (Scored)
+
+## Remediation:
+	Edit tihe /etc/ssh/sshd_config file to set the parameter as follows: 
+	X11Forwarding no
+	MaxAuthTries 4
+	IgnoreRhosts yes
+	HostbasedAuthentication no
+	PermitRootLogin no
+	PermitEmptyPasswords no
+	PermitUserEnvironment no
+	Ciphers aes128-ctr,aes192-ctr,aes256-ctr #(1. For more information on the Counter mode algorithms, read RFC4344 at \
+	# http://www.ietf.org/rfc/rfc4344.txt.)
+	ClientAliveInterval 300
+	ClientAliveCountMax 0
+
+## Limit Access via SSH (Scored)
+	Edit tihe /etc/ssh/sshd_config file to set the parameter as follows:
+	AllowUsers <userlist>
+	AllowGroups <grouplist>
+	DenyUsers <userlist>
+	DenyGroups <grouplist>
+	
+## Set SSH Banner (Scored)	
+
+## Remediation:
+	Edit the /etc/ssh/sshd_config file to set the parameter as follows:
+	Banner /etc/issue.net
+
+## Configure PAM
+	## Upgrade Password Hashing Algorithm to SHA-512 (Scored)
+	# authconfig --passalgo=sha512 --update
+	
+	Note: If it is determined that the password algorithm being used is not SHA-512, once it is
+	changed, it is recommended that all userID's be immediately expired and forced to change
+	their passwords on next login. To accomplish that, the following commands can be used.
+	Any system accounts that need to be expired should be carefully done separately by the
+	system administrator to prevent any potential problems.
+	# cat /etc/passwd | awk -F: '( $3 >=500 && $1 != "nfsnobody" ) { print $1 }' | xargs - n 1 chage -d 0
+
+## Set Password Creation Requirement Parameters Using pam_cracklib (Scored)
+
+## Remediation:
+	Set the pam_cracklib.so parameters as follows in /etc/pam.d/system-auth :
+	password required pam_cracklib.so try_first_pass retry=3 minlen=14 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1
+
+## Set Lockout for Failed Password Attempts (Not Scored)
+	
+## Remediation:
+	Edit the /etc/pam.d/password-auth and /etc/pam.d/system-auth files and add the
+	"auth" lines as highlighted below:
+	# cat /etc/pam.d/password-auth
+
+	#%PAM-1.0
+	# This file is auto-generated.
+	# User changes will be destroyed the next time authconfig is run.
+
+	auth required pam_env.so
+	auth required pam_faillock.so preauth audit silent deny=5 unlock_time=900
+	auth [success=1 default=bad] pam_unix.so
+	auth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=900
+	auth sufficient pam_faillock.so authsucc audit deny=5 unlock_time=900
+	auth required pam_deny.so
+
+	# cat /etc/pam.d/system-auth
+	#%PAM-1.0
+	# This file is auto-generated.
+	# User changes will be destroyed the next time authconfig is run.
+
+	auth required pam_env.so
+	auth required pam_faillock.so preauth audit silent deny=5 unlock_time=900
+	auth [success=1 default=bad] pam_unix.so
+	auth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=900
+	auth sufficient pam_faillock.so authsucc audit deny=5 unlock_time=900
+	auth required pam_deny.so
+
+
+## Limit Password Reuse (Scored)
+
+## Remediation:
+	Set the pam_unix.so remember parameter to 5 in /etc/pam.d/system_auth : password sufficient pam_unix.so remember=5
+
+## Restrict root Login to System Console
+
+## Audit:
+	# cat /etc/securetty
+
+## Remediation:
+	Remove entries for any consoles that are not in a physically secure location.
+
+## Restrict Access to the su Command (Scored)
+
+## Remediation:
+
+	Set the pam_wheel.so parameters as follows in /etc/pam.d/su :
+	auth required pam_wheel.so use_uid
+	Set the proper list of users to be included in the wheel group in /etc/groups .
+
+## Set Password Expiration Days (Scored)
+
+## Remediation:
+	Set the PASS_MAX_DAYS parameter to 90 in /etc/login.defs :
+	PASS_MAX_DAYS 90
+	Modify active user parameters to match:
+	# chage --maxdays 90 <user>
+
+## Set Password Change Minimum Number of Days (Scored)
+
+## Remediation:
+	Set the PASS_MIN_DAYS parameter to 7 in /etc/login.defs :
+	PASS_MIN_DAYS 7
+	Modify active user parameters to match:
+	# chage --mindays 7 <user>
+
+## Set Password Expiring Warning Days (Scored)
+
+## Remediation:
+	Set the PASS_WARN_AGE parameter to 7 in /etc/login.defs:
+	PASS_WARN_AGE 7
+	Modify active user parameters to match:
+	# chage --warndays 7 <user>
+
+# Disable System Accounts (Scored)
+
+## Remediation:
+Accounts that have been locked are prohibited from running commands on the
+system. Such accounts are not able to login to the system nor are they able to use
+scheduled execution facilities such as cron. To make sure system accounts cannot be
+accessed, using the following script:
+
+#!/bin/bash
+
+for user in `awk -F: '($3 < 500) {print $1 }' /etc/passwd`; do
+
+	if [ $user != "root" ]
+then
+	/usr/sbin/usermod -L $user
+
+	if [ $user != "sync" ] && [ $user != "shutdown" ] && [ $user != "halt" ]
+then
+	/usr/sbin/usermod -s /sbin/nologin $user
+
+	fi
+  fi
+
+done
+
+# Set Default Group for root Account (Scored)
+
+## Remediation:
+	# usermod -g 0 root
+
+## Set Default umask for Users (Scored)
+
+## Remediation:
+	Edit the /etc/bashrc and /etc/profile.d/cis.sh files (and the appropriate files for any
+	other shell supported on your system) and add the following the UMASK parameter as shown:
+	# umask 77
+
+# Lock Inactive User Accounts (Scored)
+
+## Remediation:
+	# useradd -D -f 35
+
+## Set Warning Banner for Standard Login Services (Scored)
+
+## Remediation:
+
+	# touch /etc/motd
+	# echo "Authorized uses only. All activity may be \ monitored and reported." > /etc/issue
+	# echo "Authorized uses only. All activity may be \ monitored and reported." > /etc/issue.net
+
+	chown root:root /etc/motd
+	chmod 644 /etc/motd
+	chown root:root /etc/issue
+	chmod 644 /etc/issue
+	chown root:root /etc/issue.net
+	chmod 644 /etc/issue.net
+
+## Remove OS Information from Login Warning Banners (Scored)
+
+## Remediation:
+	Edit the /etc/motd , /etc/issue and /etc/issue.net files and remove any lines containing \m , \r , \s or \v .
+
+## Set GNOME Warning Banner (Not Scored)
+
+## Remediation:
+	# /bin/su -s /bin/sh gdm
+	# gconftool-2 -direct -config-source=xml:readwrite:$HOME/.gconf -type bool -set /apps/gdm/simple-greeter/banner_message_enable true
+	# gconftool-2 -direct -config-source=xml:readwrite:$HOME/.gconf -t string -s /apps/gdm/simple-greeter/banner_message_text "Your-Login-Banner"
+	Restart gdm for these settings to take effect.
+
+## Verify System File Permissions (Not Scored)
+
+## Audit:
+	Run the following command to review all installed packages. Note that this may be very
+	time consuming and may be best scheduled via the cron utility. It is recommended that the
+	output of this command be redirected to a file that can be reviewed later.
+
+	# rpm -Va --nomtime --nosize --nomd5 --nolinkto > <filename>
+
+## Remediation:
+	Correct any discrepancies found and rerun the command until output is clean or risk is mitigated or accepted.
+
+## Verify Permissions on /etc/passwd (Scored)
+
+## Remediation:
+	If the permissions of the /etc/passwd, shadow, gshadow, group file are incorrect, run the following command to correct them:
+	# /bin/chmod 644 /etc/passwd
+	# /bin/chmod 000 /etc/shadow
+	# /bin/chmod 000 /etc/gshadow
+	# /bin/chmod 644 /etc/group
+
+## Verify User/Group Ownership on /etc/passwd, shadow, gshadow, group (Scored)
+	# /bin/chown root:root /etc/passwd
+	# /bin/chown root:root /etc/shadow
+	# /bin/chown root:root /etc/gshadow
+	# /bin/chown root:root /etc/group
+	
+## Find World Writable Files (Not Scored)
+
+## Audit:
+#!/bin/bash
+	df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -0002
+
+## Remediation:
+	Removing write access for the "other" category ( chmod o-w <filename>) is advisable, but
+	always consult relevant vendor documentation to avoid breaking any application dependencies on a given file.
+
+## Find Un-owned Files and Directories (Scored)
+##Audit:
+
+#!/bin/bash
+	df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser -ls
+
+## Remediation:
+
+	Locate files that are owned by users or groups not listed in the system configuration files,
+	and reset the ownership of these files to some active user on the system as appropriate.	
+
+## Find Un-grouped Files and Directories (Scored)
+
+## Audit:
+#!/bin/bash
+	df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nogroup -ls
+
+## Remediation:
+	Locate files that are owned by users or groups not listed in the system configuration files,
+	and reset the ownership of these files to some active user on the system as appropriate.
+
+## Find SUID System Executables (Not Scored)
+
+## Remediation:
+	Ensure that no rogue set-UID programs have been introduced into the system. Review the
+	files returned by the action in the Audit section and confirm the integrity of these binaries
+	as described below:
+	# rpm -V `rpm -qf /usr/bin/sudo`
+	.......T /usr/bin/sudo
+	SM5....T /usr/bin/sudoedit
+
+## Find SGID System Executables (Not Scored)
+
+## Remediation:
+	Ensure that no rogue set-GID programs have been introduced into the system
+	# /bin/rpm -V `/bin/rpm -qf sudo`
+
+## Review User and Group Settings
+	Ensure Password Fields are Not Empty (Scored)
+## Audit:
+	Run the following command and verify that no output is returned:
+	# /bin/cat /etc/shadow | /bin/awk -F: '($2 == "" ) { print $1 " does not have a password "}'
+
+## Remediation:
+	If any accounts in the /etc/shadow file do not have a password, run the following
+	command to lock the account until it can be determined why it does not have a password:
+	# /usr/bin/passwd -l <username>
+	Also, check to see if the account is logged in and investigate what it is being used for to determine if it needs to be forced off.
+
+## Verify No Legacy "+" Entries Exist in /etc/passwd File (Scored)
+
+## Audit:
+
+Run the following command and verify that no output is returned:
+	# /bin/grep '^+:' /etc/passwd
+	# /bin/grep '^+:' /etc/shadow
+	# /bin/grep '^+:' /etc/group
+	
+## Remediation:
+	Delete these entries if they exist.
+
+##Verify No UID 0 Accounts Exist Other Than root (Scored)
+
+##Audit:
+	Run the following command and verify that only the word "root" is returned:
+	# /bin/cat /etc/passwd | /bin/awk -F: '($3 == 0) { print $1 }'
+	root
+
+Remediation:
+	Delete any other entries that are displayed.
+
+
+## Ensure root PATH Integrity (Scored)	Script no manual 
+
+## Check Permissions on User Home Directories (Scored) Script no manual
+
+## Check User Dot File Permissions (Scored) Script no manual
+
+## Check for Presence of User .rhosts Files (Scored) Script no manual
+
+## Check Groups in /etc/passwd (Scored)
+
+## Check That Users Are Assigned Valid Home Directories (Scored)
+
+## Check User Home Directory Ownership (Scored)
+
+## Check for Duplicate UIDs, GIDs, User Names, Group Names,   (Scored)
+
+## Check That Reserved UIDs Are Assigned to System Accounts (Scored)
+
+## Check for Presence of User .netrc Files (Scored)
+
+## Check for Presence of User .forward Files (Scored)
+
+
+
+
+
+

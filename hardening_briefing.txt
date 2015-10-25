@@ -1,0 +1,132 @@
+
+HARDENING
+
+- Manter a distribuição e pacotes atualizados
+- desabilitar serviços não necessários
+- política de segurança
+- gerenciamento de mudanças
+- logs de auditoria
+
+*Obs: Reduzir as chances de comprometer o sistema
+
+#############################################################
+################TECNICAS QUE PODEMOS USAR:###################
+#############################################################
+
+# Desabilitar serviços ativos que estão rodando
+	#ps -ax -> lista todos os serviços que estão rodando
+	
+	#ls -l -> /etc/rc.d/rc3.d/S* Mostra todos os scripts que sobem no boot do seu sistema operacional. 
+	(Caso usar ambiente gráfico, use rc5.d ao invés de rc3.d)
+	
+	#netstat -antp -> lista as conexões e portas usadas
+	
+	#systemctl list-unit-files -> Lista todos os serviços usados pelo sistemd e mostra o status de cada um
+
+		Para parar o serviço que deseja, faça: 					systemctl stop "nome do serviço.service"
+		Para remover o serviço da inicialização do sistema operacional: 	systemctl disable "nome do serviço.service"
+
+#Faça uma verificação nos arquivos chave do seu sistema operacional e veja se as permissões estão corretas
+
+		- /etc/fstab		0644 (-rw-r--r--)
+		- /etc/password		644 (-rw-r--r--)
+		- /etc/group		644 (-rw-r--r--)
+		- /etc/shadow		400 (r---------)
+
+#Faça uma checagem na Politica padrão para senhas
+		
+		arquivo /etc/login.defs -> A política de senha deve casar com a política de senhas da organização (Totvs)
+		Algumas opções:
+			PASS_MAX_DAYS 90
+			PASS_MIN_DAYS 6
+			PASS_MIN_LEN 14
+			PASS_WARN_AGE 7
+
+# Limitar o acesso de root usando sudo
+		Link util: http://www.linuxhelp.net/guides/sudo/
+
+# Permitir o acesso somente do usuário root nos arquivos de cron
+
+		cd /etc/
+		/bin/rm -f cron.deny at.deny
+		echo root >cron.allow
+		echo root >at.allow
+		/bin/chown root:root cron.allow at.allow
+		/bin/chmod 400 cron.allow at.allow
+
+# Alterações básicas no acesso via SSH
+
+	Protocol 2
+	PermitRootLogin no
+	PermitEmptyPasswords no
+	Banner /etc/issue
+	IgnoreRhosts yes
+	RhostsAuthentication no
+	RhostsRSAAuthentication no
+	HostbasedAuthentication no
+	LoginGraceTime 1m (or less – default is 2 minutes)
+	SyslogFacility AUTH (provides logging under syslog AUTH)
+	AllowUser [list of users allowed access]
+	DenyUser [list of system accounts and others not allowed]
+	MaxStartups 10 (or less – use 1/3 the total number of remote users)
+#	Note: MaxStartups refers to the max number of simultaneous unauthenticated connections. This setting can be helpful against a brute-force
+	script that performs forking.
+
+# Pacotes que provem segurança 
+	denyhosts -> http://denyhosts.sourceforge.net/
+	
+# Proteger seu servidor com algum firewall, preferivelmente firewalld que é instalado por padrão na distribuição
+
+# Ter um servidor de logs é uma boa pratica.
+	Arquivo de configuração -> /etc/syslog.conf
+	
+	Exemplo:
+		# send to syslog server
+			*.emerg;*.info;*.err		@hostname
+
+
+# Auditando seus arquivos de logs
+
+ - Logwatch é uma boa pratica também
+	Relatorios podem ser enviados diretamente para o seu email informando: firewall rejects, ftp uploads/downloads,
+        disk space usage, sendmail statistics,etc.
+
+ - Swatch para examinar os logs em tempo real
+	To use swatch to check logs normally, run: swatch --config-file=/etc/swatch.conf --examine=/var/log/messages
+	To use swatch as a constantly running service that scans lines of a log file as they come in,
+	run: swatch --config-file=/etc/swatch.conf --tail-file=/var/log/messages
+
+# Faça o Backup das dos diretórios que forem mais importantes e copie para outro servidor usando rsync sobre ssh, opçãor "-e ssh"
+	
+# Para checar a integridade do software e checagem de mudanças não autorizadas nos arquivos de configuração 
+	Exemplos: http://tripwire.org/
+		  http://sourceforge.net/projects/aide
+		  http://sourceforge.net/projects/samhain
+
+# Segurança no apache
+	Verificar se os arquivos estão com a permissão e dono correto:
+		ls -l /etc/apache
+		ls –l /usr/sbin/*http*
+
+# LIDS (Linux Intrusion Detection System) 
+	Um software que pode ser usado é o de ACLs
+
+# Selinux (Security Enhanced Linux)
+	Politica de segurança que independe de qualquer outra. Link util -> http://www.nsa.gov/selinuX/
+	
+# Segurança nos emails
+	Postfix ou sendmail with ssl
+
+# Compartilhar arquivos entre servidores LINUX
+	For information on NFS security (for sharing *nix-to-*nix), see: http://www.linuxsecurity.com/content/view/117705/49/
+	
+# Encriptar
+	Talvez seja necessário encriptar os arquivos do servidor caso forem valiosos para a organização, nesse caso
+	pode-se usar http://encryptionhowto.sourceforge.net/Encryption-HOWTO.html
+
+# Proteção com antivirus
+	Clamav: www.clamav.net
+	f-prot: www.f-prot.com/products/corporate_users/unix/
+	Vexira: www.centralcommand.com/linux_server.html
+
+
